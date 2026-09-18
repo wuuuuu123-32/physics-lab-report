@@ -12,7 +12,7 @@
 **用户级安装**（任何工作区都能用）：
 
 ```powershell
-git clone https://github.com/<你的用户名>/physics-lab-report.git "$env:USERPROFILE\.dsh\skills\physics-lab-report"
+git clone https://github.com/wuuuuu123-32/physics-lab-report.git "$env:USERPROFILE\.dsh\skills\physics-lab-report"
 ```
 
 **项目级安装**（只对某个项目生效）：
