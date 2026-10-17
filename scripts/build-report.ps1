@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 #  大学物理实验报告 · Word 填充脚本模板
 # ------------------------------------------------------------
 #  用法：
@@ -24,6 +24,12 @@ $work    = "D:\dsh\config\exp-report"        # 工作目录
 $expName = "实验10 夫兰克-赫兹实验"           # 实验名称 → 决定输出文件名
 $heading = "数据处理"                          # 正文起始标题（它之前的内容会被整页删除）
 $titles  = @("数据处理", "实验结论及现象分析", "讨论题")   # 要保留自动编号的章节标题
+
+# Word 进程处理策略（❗不要随便改成 $true）
+#   $false（默认）：只结束「没有可见窗口」的残留实例（上次跑崩留下的隐藏 COM 实例）；
+#                   用户正开着文档时只警告、不强杀，避免丢失未保存内容。
+#   $true          ：无条件结束所有 WINWORD —— 会直接丢掉用户所有未保存的文档，慎用。
+$forceKillWord = $false
 
 # 照片（没有写 $null）
 $photo1 = "$work\page1.jpg"
@@ -79,8 +85,23 @@ function AppendPicAfter($doc, $para, $imgPath, $maxWidth) {
 
 # ---------- 主流程 ----------
 
-Get-Process WINWORD -ErrorAction SilentlyContinue | Stop-Process -Force
-Start-Sleep -Seconds 2
+# ❗原实现无条件 Stop-Process 所有 WINWORD，用户开着别的文档时未保存内容会直接丢失。
+# 现在只清「僵尸」：本脚本上次异常退出时留下的隐藏实例（MainWindowTitle 为空）。
+$wordProcs = @(Get-Process WINWORD -ErrorAction SilentlyContinue)
+if ($forceKillWord) {
+    if ($wordProcs.Count -gt 0) { $wordProcs | Stop-Process -Force; Start-Sleep -Seconds 2 }
+} else {
+    $visibleWord = @($wordProcs | Where-Object { $_.MainWindowTitle })
+    $zombieWord  = @($wordProcs | Where-Object { -not $_.MainWindowTitle })
+    if ($visibleWord.Count -gt 0) {
+        Write-Warning "检测到 $($visibleWord.Count) 个正在使用的 Word 窗口，不会强制结束它们（避免丢失未保存内容）。"
+        Write-Warning "若后续步骤卡住或报「文件被占用」，请手动保存并关闭 Word 后重跑；确需强制清理，把脚本里的 \$forceKillWord 改成 \$true。"
+    }
+    if ($zombieWord.Count -gt 0) {
+        $zombieWord | Stop-Process -Force
+        Start-Sleep -Seconds 2
+    }
+}
 foreach ($f in @($out, $pdf, $src)) { if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force } }
 
 Copy-Item "$work\original.docx" $src -Force
