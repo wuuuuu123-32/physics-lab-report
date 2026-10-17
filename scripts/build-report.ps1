@@ -1,4 +1,4 @@
-﻿# ============================================================
+﻿﻿﻿# ============================================================
 #  大学物理实验报告 · Word 填充脚本模板
 # ------------------------------------------------------------
 #  用法：
@@ -165,14 +165,24 @@ try {
     }
 
     # ── ④ 只保留章节标题的自动编号（否则编号会乱窜）──
+    # 判定靠 $titles 里的关键字。标题被改名或删掉时，那一段会被当成正文清掉编号，
+    # 而这种错误要等出 PDF、看到编号从头开始或「一．一．」才会暴露 —— 所以这里顺手核对一遍。
     $cleared = 0
+    $hitTitles = @{}
     foreach ($p in $doc.Paragraphs) {
         $t = ($p.Range.Text -replace "[\r\n\a\x07]", "").Trim()
         $isTitle = $false
         foreach ($k in $titles) {
-            if ($t -like "*$k*" -and $t.Length -le ($k.Length + 6)) { $isTitle = $true; break }
+            if ($t -like "*$k*" -and $t.Length -le ($k.Length + 6)) { $isTitle = $true; $hitTitles[$k] = $p.Range.ListFormat.ListString; break }
         }
         if (-not $isTitle) { try { $p.Range.ListFormat.RemoveNumbers(); $cleared++ } catch {} }
+    }
+    foreach ($k in $titles) {
+        if ($hitTitles.ContainsKey($k)) {
+            Write-Host ("  标题「" + $k + "」自动编号 = " + $hitTitles[$k])   # 打印出来便于肉眼核对
+        } else {
+            Write-Warning "标题「$k」在文档里没找到（改名或删除了？）它的自动编号会被当成正文清掉 —— 请把标题改回来，或同步改 `$titles"
+        }
     }
     Write-Host "已清除 $cleared 个段落的编号"
 
