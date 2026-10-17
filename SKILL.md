@@ -110,18 +110,24 @@ for ($i = $photos.Count - 1; $i -ge 1; $i--) {
 - 插入答案用 `$endBefore = $para.Range.End`（**不是** `$endBefore + 1`）
 - 只填**数据处理 / 结论 / 讨论题**三节（预习页和数据页已经是照片了）
 
-**章节编号用手写，不要跟 Word 自动编号死磕**：
-删掉前面的段落之后，各标题的自动编号会各自从 1 开始（出现两个「一．」）；
-`ApplyListTemplate(..., ContinuePreviousList=$true)` 也连不起来（实测三遍都没用）。三星期的功夫不如一行文本：
+**章节编号：脚本保留标题自动编号、只清正文编号**：
+
+删掉前面的段落之后，各标题的自动编号会各自从 1 开始（出现两个「一．」）。
+`scripts/build-report.ps1` 的 ④ 步做的是：遍历所有段落，`$titles` 里那三个章节标题**保留**自动编号，
+其余段落一律 `RemoveNumbers()` —— 乱窜的从来不是标题本身，而是插入的答案段继承了锚点编号。
+
+只有一种情况才改成**手写编号**：连标题本身都各自从 1 起（整篇被切成多节、自动编号彻底不连续）。那时：
 
 ```powershell
 foreach ($pair in @(@("数据处理","一．"), @("实验结论及现象分析","二．"), @("讨论题","三．"))) {
     $p = GetPara $doc $pair[0]
-    try { $p.Range.ListFormat.RemoveNumbers() } catch {}
+    try { $p.Range.ListFormat.RemoveNumbers() } catch {}   # 先清掉自动编号，否则会与手写编号并列出现「一．一．」
     $p.Range.InsertBefore($pair[1] + " ")     # 编号文本继承标题字体
     $p.Format.LeftIndent = 0; $p.Format.FirstLineIndent = 0
 }
 ```
+
+`ApplyListTemplate(..., ContinuePreviousList=$true)` 试过三遍都连不起来，别在这上面耗时间。
 
 **公式上标**：正文里一律写 `10^-34`、`mv^2/2` 这种 `^` 写法（**不要用 Unicode ⁻¹⁹**，Times New Roman 缺字，PDF 里会渲染成 `10 * 19`），最后用 python-docx 转成真正的上标 run，并把里面的 `-` 换成 **U+2212 减号**（ASCII 连字符后允许断行，会把 `10⁻³⁴` 劈成两行）。
 
@@ -170,7 +176,7 @@ $doc.ExportAsFixedFormat($pdf, 17)  # 17 = PDF，不改变文档身份
 | 答案吞掉下一题题干 | 插入点偏移 1 字符 → 用 `$endBefore` |
 | 照片钻进标题段落 | 图1 插好立刻 `InsertParagraphAfter()`；图2 先 `InsertParagraphBefore()` 造空段落当落点 |
 | 文档多出一整页空白 | 手工分页符的锅 → 改用段落 `PageBreakBefore` |
-| 章节编号乱窜 / 出现两个「一．」 | 删段后自动编号各自从 1 起 → 改**手写编号**（见流程 5） |
+| 章节编号乱窜 / 出现两个「一．」 | 插入的答案段继承了锚点编号 → 脚本 ④ 步已按 `$titles` 清掉非标题段；只有标题自己也各自从 1 起才改**手写编号**（见流程 5） |
 | `Word 未能引发事件` | 沙箱受限令牌 → 必须完全权限（ConstrainedLanguage 禁止创建 COM 对象）|
 
 ## 用户的硬性要求
