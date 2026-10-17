@@ -26,8 +26,10 @@ $heading = "数据处理"                          # 正文起始标题（它之
 $titles  = @("数据处理", "实验结论及现象分析", "讨论题")   # 要保留自动编号的章节标题
 
 # Word 进程处理策略（❗不要随便改成 $true）
-#   $false（默认）：只结束「没有可见窗口」的残留实例（上次跑崩留下的隐藏 COM 实例）；
-#                   用户正开着文档时只警告、不强杀，避免丢失未保存内容。
+#   $false（默认）：不结束任何 Word 进程，只列出「没有可见窗口」的实例并给出可复制的清理命令。
+#                   理由：MainWindowTitle 为空并不等于僵尸 —— 正在启动、正在切换文档、
+#                   被其他程序以隐藏方式打开的 Word 都可能没有标题，按标题判活会误杀用户进程
+#                   （2026-10-17 独立评审指出，原「只杀无标题进程」仍可能丢失未保存内容）。
 #   $true          ：无条件结束所有 WINWORD —— 会直接丢掉用户所有未保存的文档，慎用。
 $forceKillWord = $false
 
@@ -98,8 +100,12 @@ if ($forceKillWord) {
         Write-Warning "若后续步骤卡住或报「文件被占用」，请手动保存并关闭 Word 后重跑；确需强制清理，把脚本里的 \$forceKillWord 改成 \$true。"
     }
     if ($zombieWord.Count -gt 0) {
-        $zombieWord | Stop-Process -Force
-        Start-Sleep -Seconds 2
+        # 只提示，不动手：无标题 ≠ 僵尸，误杀会丢用户未保存的文档。
+        $zombiePids = ($zombieWord | ForEach-Object { $_.Id }) -join ','
+        Write-Warning "检测到 $($zombieWord.Count) 个没有可见窗口的 Word 实例（PID $zombiePids）。"
+        Write-Warning "若本脚本报「文件被占用」，先确认这些不是你正在用的文档，再执行："
+        Write-Warning ("  Stop-Process -Id " + ($zombieWord | ForEach-Object { $_.Id } | Select-Object -First 1) + " -Force")
+        Write-Warning "（要清理全部无窗口实例：Get-Process WINWORD | Where-Object { -not \$_.MainWindowTitle } | Stop-Process -Force）"
     }
 }
 foreach ($f in @($out, $pdf, $src)) { if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force } }
